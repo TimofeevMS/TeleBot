@@ -1,11 +1,12 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using Telegram.Bot;
 using Telegram.Bot.Args;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.InputFiles;
 using File = System.IO.File;
 
 namespace TeleBot
@@ -16,6 +17,72 @@ namespace TeleBot
 
         static void Main(string[] args)
         {
+            connectToBot();
+
+            bot.OnMessage += messageListener;
+            bot.StartReceiving();
+            Console.ReadKey();
+        }
+
+        private static void messageListener(object sender, MessageEventArgs e)
+        {
+            string text = $"{DateTime.Now.ToLongTimeString()}: {e.Message.Chat.FirstName} {e.Message.Chat.Id} {e.Message.Text}";
+
+            Console.WriteLine($"{text} TypeMessage: {e.Message.Type.ToString()}");
+
+            switch (e.Message.Type)
+            {
+                case MessageType.Text:
+                    bot.SendTextMessageAsync(e.Message.Chat.Id, $"{e.Message.Text}");
+                    break;
+                case MessageType.Photo:
+                    var photo = e.Message.Photo.OrderByDescending(p => p.Width).FirstOrDefault();
+                    if (photo != null)
+                    {
+                        download(photo.FileId);
+                        bot.SendPhotoAsync(e.Message.Chat.Id, new InputOnlineFile(photo.FileId));
+                    }
+                    break;
+                case MessageType.Audio:
+                    download(e.Message.Audio.FileId);
+                    bot.SendAudioAsync(e.Message.Chat.Id, new InputOnlineFile(e.Message.Audio.FileId));
+                    break;
+                case MessageType.Video:
+                    download(e.Message.Video.FileId);
+                    bot.SendVideoAsync(e.Message.Chat.Id, new InputOnlineFile(e.Message.Video.FileId));
+                    break;
+                case MessageType.Voice:
+                    download(e.Message.Voice.FileId);
+                    bot.SendVoiceAsync(e.Message.Chat.Id, new InputOnlineFile(e.Message.Voice.FileId));
+                    break;
+                case MessageType.Document:
+                    download(e.Message.Document.FileId);
+                    bot.SendDocumentAsync(e.Message.Chat.Id, new InputOnlineFile(e.Message.Document.FileId));
+                    break;
+                case MessageType.Sticker:
+                    download(e.Message.Sticker.FileId);
+                    bot.SendStickerAsync(e.Message.Chat.Id, new InputOnlineFile(e.Message.Sticker.FileId));
+                    break;
+                case MessageType.VideoNote:
+                    download(e.Message.VideoNote.FileId);
+                    bot.SendVideoNoteAsync(e.Message.Chat.Id, new InputOnlineFile(e.Message.VideoNote.FileId));
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+
+        private static async void download(string fileId)
+        {
+            var file = await bot.GetFileAsync(fileId);
+            using (FileStream fs = new FileStream(new FileInfo(file.FilePath).Name, FileMode.Create))
+            {
+                await bot.DownloadFileAsync(file.FilePath, fs);
+            }
+        }
+
+        private static void connectToBot()
+        {
             string token = File.ReadAllText("token.txt");
 
             var proxy = new WebProxy
@@ -24,133 +91,14 @@ namespace TeleBot
                 UseDefaultCredentials = false,
             };
 
-            var httpClientHandler = new HttpClientHandler { Proxy = proxy };
+            var httpClientHandler = new HttpClientHandler
+            {
+                Proxy = proxy
+            };
 
             HttpClient hc = new HttpClient(httpClientHandler);
 
             bot = new TelegramBotClient(token, hc);
-
-            //bot = new TelegramBotClient(token);
-
-            var me = bot.GetMeAsync().Result;
-            Console.WriteLine($"Hello, World! I am user {me.Id} and my name is {me.FirstName}.");
-
-            bot.OnMessage += MessageListener;
-            bot.OnUpdate += BotOnOnUpdate;
-            bot.StartReceiving();
-            Console.ReadKey();
-        }
-
-        private static void BotOnOnUpdate(object sender, UpdateEventArgs e)
-        {
-            throw new NotImplementedException();
-        }
-
-        private static void MessageListener(object sender, Telegram.Bot.Args.MessageEventArgs e)
-        {
-            string text = $"{DateTime.Now.ToLongTimeString()}: {e.Message.Chat.FirstName} {e.Message.Chat.Id} {e.Message.Text}";
-
-            Console.WriteLine($"{text} TypeMessage: {e.Message.Type.ToString()}");
-            
-            switch (e.Message.Type)
-            {
-                case MessageType.Unknown:
-                    break;
-                case MessageType.Text:
-                    break;
-                case MessageType.Photo:
-                    foreach (PhotoSize photoSiz in e.Message.Photo)
-                    {
-                        Console.WriteLine(photoSiz.FileId);
-                        Console.WriteLine(photoSiz.FileSize);
-
-                        DownLoad(photoSiz.FileId);
-                    }
-                    break;
-                case MessageType.Audio:
-                    break;
-                case MessageType.Video:
-                    break;
-                case MessageType.Voice:
-                    break;
-                case MessageType.Document:
-                    Console.WriteLine(e.Message.Document.FileId);
-                    Console.WriteLine(e.Message.Document.FileName);
-                    Console.WriteLine(e.Message.Document.FileSize);
-
-                    DownLoad(e.Message.Document.FileId, e.Message.Document.FileName);
-                    break;
-                case MessageType.Sticker:
-                    break;
-                case MessageType.Location:
-                    break;
-                case MessageType.Contact:
-                    break;
-                case MessageType.Venue:
-                    break;
-                case MessageType.Game:
-                    break;
-                case MessageType.VideoNote:
-                    break;
-                case MessageType.Invoice:
-                    break;
-                case MessageType.SuccessfulPayment:
-                    break;
-                case MessageType.WebsiteConnected:
-                    break;
-                case MessageType.ChatMembersAdded:
-                    break;
-                case MessageType.ChatMemberLeft:
-                    break;
-                case MessageType.ChatTitleChanged:
-                    break;
-                case MessageType.ChatPhotoChanged:
-                    break;
-                case MessageType.MessagePinned:
-                    break;
-                case MessageType.ChatPhotoDeleted:
-                    break;
-                case MessageType.GroupCreated:
-                    break;
-                case MessageType.SupergroupCreated:
-                    break;
-                case MessageType.ChannelCreated:
-                    break;
-                case MessageType.MigratedToSupergroup:
-                    break;
-                case MessageType.MigratedFromGroup:
-                    break;
-                case MessageType.Animation:
-                    break;
-                case MessageType.Poll:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            if (e.Message.Text == null) return;
-
-            var messageText = e.Message.Text;
-
-            bot.SendTextMessageAsync(e.Message.Chat.Id, $"{messageText}");
-        }
-
-        static async void DownLoad(string fileId)
-        {
-            var file = await bot.GetFileAsync(fileId);
-            using (FileStream fs = new FileStream(Path.GetTempFileName(), FileMode.Create))
-            {
-                await bot.DownloadFileAsync(file.FilePath, fs);
-            }
-        }
-
-        static async void DownLoad(string fileId, string path)
-        {
-            var file = await bot.GetFileAsync(fileId);
-            using (FileStream fs = new FileStream("_" + path, FileMode.Create))
-            {
-                await bot.DownloadFileAsync(file.FilePath, fs);
-            }
         }
     }
 }
